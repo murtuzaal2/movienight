@@ -5,11 +5,15 @@ import { revalidatePath } from "next/cache";
 import type { Movie, SearchResult, User, TMDBSearchResult } from "@/lib/types";
 
 // --- TMDB API ---
-// IMPORTANT: It's recommended to move these credentials to a .env.local file
-const TMDB_ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1Njg3YWIyOWI1NjA0MzJmOGFlZTAzZWI2Y2M0ZWEyMyIsIm5iZiI6MTc2NTI0NjA1Ni4zNjA5OTk4LCJzdWIiOiI2OTM3ODQ2ODQ5NTE4MDgyOWIzY2U1ZjEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.A6R5ATQP0m-pC1lMXTLsIRXMz2AouhRCxxfgz6Rs9PM';
+const TMDB_ACCESS_TOKEN = process.env.NEXT_PUBLIC_TMDB_ACCESS_TOKEN;
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 
 async function tmdbFetch(path: string, params: Record<string, string> = {}) {
+    if (!TMDB_ACCESS_TOKEN) {
+        console.error("TMDB Access Token is not configured.");
+        return null;
+    }
+
     const url = new URL(`${TMDB_API_BASE_URL}/${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
