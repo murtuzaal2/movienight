@@ -54,14 +54,13 @@ function formatTMDBSearchResult(result: TMDBSearchResult): SearchResult {
 
 let movies: Movie[] = [
     {
-        id: '278', // The Shawshank Redemption
-        title: 'The Shawshank Redemption',
-        year: '1994',
-        posterUrl: 'https://image.tmdb.org/t/p/w500/9O7gLzmreU0nGkIB6K3BsJbzvNv.jpg',
+        id: '272', // Batman Begins
+        title: 'Batman Begins',
+        year: '2005',
+        posterUrl: 'https://image.tmdb.org/t/p/w500/8RW2runSEc34IwKN2D1a4db2Sta.jpg',
         posterHint: 'movie poster',
         addedBy: 'User A',
         status: 'To Watch',
-        socialLink: 'https://www.tiktok.com/tag/shawshankredemption'
     },
     {
         id: '238', // The Godfather

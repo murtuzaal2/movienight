@@ -37,17 +37,18 @@ export function MovieCard({ movie, userAvatarUrl }: MovieCardProps) {
   
   return (
     <Card className="flex flex-col border-[3px] border-black rounded-lg shadow-[8px_8px_0px_0px_#000] overflow-hidden transition-all duration-200 hover:shadow-[4px_4px_0px_0px_#000]">
-      <CardHeader className="flex-row gap-4 items-center">
-        <Avatar className="h-12 w-12 border-[3px] border-black">
-          <AvatarImage src={userAvatarUrl} alt={movie.addedBy} />
-          <AvatarFallback>{movie.addedBy.charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div className="flex-grow">
-          <CardTitle className="font-headline text-2xl">{movie.title}</CardTitle>
-          <CardDescription className="font-bold">{movie.year}</CardDescription>
+      <CardHeader>
+        <div className="flex items-center gap-3 mb-4">
+            <Avatar className="h-10 w-10 border-[3px] border-black">
+              <AvatarImage src={userAvatarUrl} alt={movie.addedBy} />
+              <AvatarFallback>{movie.addedBy.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <p className="font-bold text-sm">Added by {movie.addedBy}</p>
         </div>
+        <CardTitle className="font-headline text-2xl">{movie.title}</CardTitle>
+        <CardDescription className="font-bold">{movie.year}</CardDescription>
       </CardHeader>
-      <CardContent className="flex-grow flex items-center justify-center">
+      <CardContent className="flex-grow flex items-center justify-center pt-0">
         <Image
           src={movie.posterUrl}
           alt={`Poster for ${movie.title}`}
