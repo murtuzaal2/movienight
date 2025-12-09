@@ -36,7 +36,7 @@ export function MovieList({ initialMovies }: MovieListProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
           {filteredMovies.map((movie) => (
             <MovieCard 
-              key={`${movie.id}-${movie.addedBy}`}
+              key={`${movie.id}-${movie.addedBy}`} 
               movie={movie} 
               userAvatarUrl={userAvatars[movie.addedBy]} 
             />

@@ -4,15 +4,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useTransition } from "react";
-import { Eye, EyeOff, Instagram, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Instagram, Loader2, Trash2 } from "lucide-react";
 
-import { toggleWatchStatus } from "@/app/actions";
+import { toggleWatchStatus, removeMovie } from "@/app/actions";
 import type { Movie } from "@/lib/types";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TiktokIcon } from "./icons";
+import { useToast } from "@/hooks/use-toast";
+
 
 type MovieCardProps = {
   movie: Movie;
@@ -23,10 +25,21 @@ const retroButtonClass = "border-[3px] border-black rounded-lg shadow-[4px_4px_0
 
 export function MovieCard({ movie, userAvatarUrl }: MovieCardProps) {
   const [isPending, startTransition] = useTransition();
+  const { toast } = useToast();
 
   const handleToggle = () => {
     startTransition(() => {
-      toggleWatchStatus(movie.id);
+      toggleWatchStatus(movie.id, movie.addedBy);
+    });
+  };
+
+  const handleRemove = () => {
+    startTransition(async () => {
+      await removeMovie(movie.id, movie.addedBy);
+      toast({
+        title: "Movie Removed",
+        description: `${movie.title} has been removed from your list.`,
+      });
     });
   };
 
@@ -59,26 +72,33 @@ export function MovieCard({ movie, userAvatarUrl }: MovieCardProps) {
           data-ai-hint={movie.posterHint}
         />
       </CardContent>
-      <CardFooter className="flex justify-end gap-2 bg-secondary p-4 border-t-[3px] border-black mt-auto">
-        {SocialIcon && movie.socialLink && (
-            <Button asChild variant="outline" size="icon" className={retroButtonClass}>
-                <Link href={movie.socialLink} target="_blank" aria-label="Social media link">
-                    <SocialIcon className="h-5 w-5"/>
-                </Link>
-            </Button>
-        )}
-        <form action={handleToggle}>
-          <Button type="submit" disabled={isPending} size="icon" className={`${retroButtonClass} w-auto px-4`} variant={movie.status === 'Watched' ? 'default' : 'secondary'}>
-            {isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-                <>
-                {movie.status === 'To Watch' ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                <span className="ml-2 font-bold">{movie.status === 'Watched' ? 'Watched' : 'To Watch'}</span>
-                </>
-            )}
+      <CardFooter className="flex justify-between gap-2 bg-secondary p-4 border-t-[3px] border-black mt-auto">
+        <form action={handleRemove} className="flex">
+          <Button type="submit" variant="destructive" size="icon" className={retroButtonClass} disabled={isPending}>
+            {isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
           </Button>
         </form>
+        <div className="flex justify-end gap-2">
+            {SocialIcon && movie.socialLink && (
+                <Button asChild variant="outline" size="icon" className={retroButtonClass}>
+                    <Link href={movie.socialLink} target="_blank" aria-label="Social media link">
+                        <SocialIcon className="h-5 w-5"/>
+                    </Link>
+                </Button>
+            )}
+            <form action={handleToggle}>
+              <Button type="submit" disabled={isPending} size="icon" className={`${retroButtonClass} w-auto px-4`} variant={movie.status === 'Watched' ? 'default' : 'secondary'}>
+                {isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                    <>
+                    {movie.status === 'To Watch' ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                    <span className="ml-2 font-bold">{movie.status === 'Watched' ? 'Watched' : 'To Watch'}</span>
+                    </>
+                )}
+              </Button>
+            </form>
+        </div>
       </CardFooter>
     </Card>
   );

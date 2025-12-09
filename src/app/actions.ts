@@ -149,10 +149,18 @@ export async function addMovie(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function toggleWatchStatus(movieId: string) {
-    const movie = movies.find(m => m.id === movieId);
+export async function toggleWatchStatus(movieId: string, addedBy: User) {
+    const movie = movies.find(m => m.id === movieId && m.addedBy === addedBy);
     if (movie) {
         movie.status = movie.status === 'To Watch' ? 'Watched' : 'To Watch';
+    }
+    revalidatePath('/');
+}
+
+export async function removeMovie(movieId: string, addedBy: User) {
+    const movieIndex = movies.findIndex(m => m.id === movieId && m.addedBy === addedBy);
+    if (movieIndex > -1) {
+        movies.splice(movieIndex, 1);
     }
     revalidatePath('/');
 }
