@@ -1,0 +1,172 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model. All user-generated
+ * content, such as their movie lists and associated social links, is stored in a private
+ * data tree accessible only to the user who created it. The default security posture is to
+ * deny all access, granting permissions explicitly based on authenticated user ownership.
+ *
+ * Data Structure: The data is organized hierarchically to reflect ownership. All data for a
+ * specific user is nested under the `/users/{userId}` document. This includes their profile,
+ * their list of movies in a subcollection (`/movies`), and any social links associated with
+ * those movies (`/movies/{movieId}/socialLinks`).
+ *
+ * Key Security Decisions:
+ * - User Enumeration is Disallowed: Listing documents from the top-level `/users`
+ *   collection is explicitly forbidden to protect user privacy.
+ * - Path-Based Security: Authorization is primarily determined by the `{userId}` wildcard
+ *   in the document path, ensuring that a user can only access data within their own tree.
+ * - Relational Integrity: On creation, rules ensure that internal ID fields (e.g.,
+ *   `addedByUserId`) correctly match the document's path, creating a consistent and
+ *   secure data graph. These key relational fields are enforced as immutable on update.
+ *
+ * Denormalization for Authorization: This ruleset's structure is a prime example of using
+ * the database path for authorization. By nesting user-specific collections like `movies`
+ * under `/users/{userId}`, we avoid slow and costly `get()` calls to other documents to
+ * verify ownership. The path itself contains all the necessary authorization context.
+ *
+ * Structural Segregation: User data is completely segregated into private subcollections.
+ * This is a highly secure and performant pattern that prevents accidental data leaks and
+ * ensures that `list` operations are inherently secure, as a user can only query within
+ * their own isolated data space.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for establishing document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * A robust check for update and delete operations. It verifies that the user is the
+     * owner AND that the document they are trying to modify already exists.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+    
+    /**
+     * Validates a new user document on creation.
+     * Ensures the document's internal `id` field matches its path ID for consistency.
+     */
+    function isNewUserValid(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates an existing user document on update.
+     * Enforces that the internal `id` field is immutable.
+     */
+    function isExistingUserValid() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates a new movie document on creation.
+     * Ensures the `addedByUserId` foreign key points to the correct owner from the path.
+     */
+    function isNewMovieValid(userId) {
+      return request.resource.data.addedByUserId == userId;
+    }
+
+    /**
+     * Validates an existing movie document on update.
+     * Enforces that the `addedByUserId` field is immutable.
+     */
+    function isExistingMovieValid() {
+      return request.resource.data.addedByUserId == resource.data.addedByUserId;
+    }
+
+    /**
+     * Validates a new social link on creation.
+     * Ensures the `movieId` foreign key points to the correct parent movie from the path.
+     */
+    function isNewSocialLinkValid(movieId) {
+      return request.resource.data.movieId == movieId;
+    }
+
+    /**
+     * Validates an existing social link on update.
+     * Enforces that the `movieId` field is immutable.
+     */
+    function isExistingSocialLinkValid() {
+      return request.resource.data.movieId == resource.data.movieId;
+    }
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile documents. A user can create their own profile,
+     *   and read, update, or delete it thereafter. Listing all users is forbidden.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user creating their own user document:
+     *   `auth.uid == 'user123'`, `create /users/user123`
+     * @deny (list) Any user trying to list all user documents:
+     *   `auth.uid == 'user123'`, `list /users`
+     * @deny (update) A user trying to update another user's profile:
+     *   `auth.uid == 'user123'`, `update /users/user456`
+     * @principle Restricts access to a user's own data tree and prevents user enumeration.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isNewUserValid(userId);
+      allow update: if isExistingOwner(userId) && isExistingUserValid();
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Manages the movies a user has added to their list. Access is
+       *   restricted to the owner of the parent user document.
+       * @path /users/{userId}/movies/{movieId}
+       * @allow (create) An authenticated user adding a movie to their own list:
+       *   `auth.uid == 'user123'`, `create /users/user123/movies/movieABC`
+       * @allow (list) An authenticated user listing their own movies:
+       *   `auth.uid == 'user123'`, `list /users/user123/movies`
+       * @deny (get) A user trying to read a movie from another user's list:
+       *   `auth.uid == 'user123'`, `get /users/user456/movies/movieABC`
+       * @principle Enforces document ownership for all operations within a user-specific subcollection.
+       */
+      match /movies/{movieId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isNewMovieValid(userId);
+        allow update: if isExistingOwner(userId) && isExistingMovieValid();
+        allow delete: if isExistingOwner(userId);
+
+        /**
+         * @description Manages social media links associated with a specific movie in a
+         *   user's list. Access is inherited from the top-level user owner.
+         * @path /users/{userId}/movies/{movieId}/socialLinks/{socialLinkId}
+         * @allow (create) An authenticated user adding a social link to their own movie:
+         *   `auth.uid == 'user123'`, `create /users/user123/movies/movieABC/socialLinks/linkXYZ`
+         * @deny (delete) A user trying to delete a social link from another user's movie:
+         *   `auth.uid == 'user123'`, `delete /users/user456/movies/movieABC/socialLinks/linkXYZ`
+         * @principle Secures nested subcollections by continuing the path-based ownership model.
+         */
+        match /socialLinks/{socialLinkId} {
+          allow get: if isOwner(userId);
+          allow list: if isOwner(userId);
+          allow create: if isOwner(userId) && isNewSocialLinkValid(movieId);
+          allow update: if isExistingOwner(userId) && isExistingSocialLinkValid();
+          allow delete: if isExistingOwner(userId);
+        }
+      }
+    }
+  }
+}
