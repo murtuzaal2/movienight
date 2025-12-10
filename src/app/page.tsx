@@ -1,17 +1,31 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { getMovies } from "@/app/actions";
-import { AddMovieForm } from "@/components/add-movie-form";
 import { MovieList } from "@/components/movie-list";
+import { AddMovieForm } from "@/components/add-movie-form";
 import { Film } from "lucide-react";
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { UserAvatar } from '@/components/user-avatar';
+import { collection, query, where } from 'firebase/firestore';
+import type { Movie } from '@/lib/types';
+
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const firestore = useFirestore();
+
+  // Memoize the query to prevent re-renders
+  const moviesQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    // We can create more complex queries here later, e.g., for shared lists
+    return collection(firestore, 'users', user.uid, 'movies');
+  }, [firestore, user]);
+
+  // Use the useCollection hook to get real-time movie data
+  const { data: movies, isLoading: isLoadingMovies } = useCollection<Movie>(moviesQuery);
+
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -27,8 +41,6 @@ export default function Home() {
     );
   }
 
-  // This is a placeholder as we will move to firestore in Phase 2
-  const movies = [];
 
   return (
     <main className="min-h-screen bg-background font-body text-foreground">
@@ -50,9 +62,8 @@ export default function Home() {
             <AddMovieForm />
           </div>
         </header>
-
-        {/* This will be re-enabled and hooked to firestore in Phase 2 */}
-        {/* <MovieList initialMovies={movies} /> */}
+        
+        <MovieList initialMovies={movies || []} isLoading={isLoadingMovies} />
       </div>
     </main>
   );
