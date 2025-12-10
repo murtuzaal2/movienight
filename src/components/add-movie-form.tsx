@@ -17,46 +17,37 @@ import { useUser } from "@/firebase";
 const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 
 async function tmdbFetch(path: string, params: Record<string, string> = {}) {
-  // Use the API Read Access Token from environment variables.
-  // This is the correct way to authenticate for client-side requests.
-  const TMDB_ACCESS_TOKEN = process.env.NEXT_PUBLIC_TMDB_ACCESS_TOKEN;
-  if (!TMDB_ACCESS_TOKEN) {
-    // This will now properly throw on the client/server where it's called.
-    throw new Error('TMDB Access Token is not configured.');
-  }
+    const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
 
-  const url = new URL(`${TMDB_API_BASE_URL}/${path}`);
-
-  // Add any other params
-  Object.entries(params).forEach(([key, value]) =>
-    url.searchParams.append(key, value)
-  );
-
-  // The API key is sent as a Bearer Token in the Authorization header.
-  const options = {
-    method: 'GET',
-    headers: {
-      accept: 'application/json',
-      Authorization: `Bearer ${TMDB_ACCESS_TOKEN}`,
-    },
-  };
-
-  try {
-    const response = await fetch(url.toString(), options);
-    if (!response.ok) {
-      console.error(
-        `TMDB API Error: ${response.status} ${response.statusText}`
-      );
-      const errorBody = await response.text();
-      console.error('Error Body:', errorBody);
-      return null;
+    if (!apiKey) {
+        console.error('TMDB API key is missing. Check NEXT_PUBLIC_TMDB_API_KEY in .env.local');
+        return null;
     }
-    return response.json();
-  } catch (error) {
-    console.error('Failed to fetch from TMDB:', error);
-    return null;
-  }
+
+    const url = new URL(`${TMDB_API_BASE_URL}/${path}`);
+    url.searchParams.set('api_key', apiKey);
+
+    for (const [key, value] of Object.entries(params)) {
+        url.searchParams.set(key, value);
+    }
+    
+    try {
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+        console.error(
+            `TMDB API Error: ${response.status} ${response.statusText}`
+        );
+        const errorBody = await response.text();
+        console.error('Error Body:', errorBody);
+        return null;
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Failed to fetch from TMDB:', error);
+        return null;
+    }
 }
+
 
 function formatTMDBSearchResult(result: TMDBSearchResult): SearchResult {
   const year = result.release_date ? result.release_date.split('-')[0] : 'N/A';
