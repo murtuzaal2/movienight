@@ -1,23 +1,99 @@
+
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
 import { Search, Loader2, Plus } from "lucide-react";
 import Image from "next/image";
 
-import type { SearchResult, User } from "@/lib/types";
-import { addMovie, searchMovies } from "@/app/actions";
+import type { SearchResult, TMDBSearchResult } from "@/lib/types";
+import { addMovie } from "@/app/actions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/firebase";
+
+const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
+
+async function tmdbFetch(path: string, params: Record<string, string> = {}) {
+    const accessToken = process.env.NEXT_PUBLIC_TMDB_ACCESS_TOKEN;
+    if (!accessToken) {
+        console.error('TMDB Access Token is not configured. Check NEXT_PUBLIC_TMDB_ACCESS_TOKEN in .env.local');
+        return null;
+    }
+
+    const url = new URL(`${TMDB_API_BASE_URL}/${path}`);
+    for (const [key, value] of Object.entries(params)) {
+        url.searchParams.set(key, value);
+    }
+    
+    const options = {
+        method: 'GET',
+        headers: {
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`
+        }
+    };
+
+    try {
+        const response = await fetch(url.toString(), options);
+        if (!response.ok) {
+        console.error(
+            `TMDB API Error: ${response.status} ${response.statusText}`
+        );
+        const errorBody = await response.text();
+        console.error('Error Body:', errorBody);
+        return null;
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Failed to fetch from TMDB:', error);
+        return null;
+    }
+}
+
+
+function formatTMDBSearchResult(result: TMDBSearchResult): SearchResult {
+  const year = result.release_date ? result.release_date.split('-')[0] : 'N/A';
+  return {
+    id: result.id.toString(),
+    title: result.title,
+    year: year,
+    posterUrl: result.poster_path
+      ? `https://image.tmdb.org/t/p/w500${result.poster_path}`
+      : 'https://picsum.photos/seed/placeholder/500/750', // Fallback
+    posterHint: 'movie poster',
+  };
+}
+
+
+/**
+ * Searches for movies on TMDB.
+ */
+export async function searchMovies(query: string): Promise<SearchResult[]> {
+  if (!query) return [];
+
+  const data = await tmdbFetch('search/movie', {
+    query: query,
+    include_adult: 'false',
+    language: 'en-US',
+    page: '1',
+  });
+
+  if (data && data.results) {
+    return data.results.slice(0, 10).map(formatTMDBSearchResult);
+  }
+
+  return [];
+}
+
 
 const retroInputClass = "border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] focus:shadow-[2px_2px_0px_0px_#000] focus:translate-x-0.5 focus:translate-y-0.5 transition-all duration-200";
 const retroButtonClass = "border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all duration-200";
 
 export function AddMovieForm() {
-  const [currentUser, setCurrentUser] = useState<User>('User A');
+  const { user } = useUser();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<SearchResult | null>(null);
@@ -28,24 +104,20 @@ export function AddMovieForm() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Don't search if the query is empty or a movie is already selected
     if (!query.trim() || selectedMovie) {
       setResults([]);
       return;
     }
 
-    // Set a timer to wait 300ms after the user stops typing
     const searchTimer = setTimeout(() => {
       startSearchTransition(async () => {
         const searchResults = await searchMovies(query);
-        // Only update results if the query hasn't changed (to avoid race conditions)
         setResults(searchResults);
       });
-    }, 300); // 300ms debounce delay
+    }, 300);
 
-    // Clear the timer if the user types again before the 300ms is up
     return () => clearTimeout(searchTimer);
-  }, [query, selectedMovie]); // Re-run this effect when the query or selectedMovie changes
+  }, [query, selectedMovie]); 
   
   const handleSelectMovie = (movie: SearchResult) => {
     setSelectedMovie(movie);
@@ -54,17 +126,25 @@ export function AddMovieForm() {
   };
 
   const handleAddMovie = async (formData: FormData) => {
-    if (!selectedMovie) return;
+    if (!selectedMovie || !user) return;
     
     formData.append("movieData", JSON.stringify(selectedMovie));
-    formData.append("addedBy", currentUser);
+    formData.append("addedBy", user.uid);
 
     startAddingTransition(async () => {
-      await addMovie(formData);
-      toast({
-        title: "Movie Added!",
-        description: `${selectedMovie.title} has been added to your list.`,
-      });
+      const result = await addMovie(formData);
+      if (result?.error) {
+        toast({
+          variant: 'destructive',
+          title: "Error adding movie",
+          description: result.error,
+        });
+      } else {
+        toast({
+          title: "Movie Added!",
+          description: `${selectedMovie.title} has been added to your list.`,
+        });
+      }
       setSelectedMovie(null);
     });
   };
@@ -73,15 +153,6 @@ export function AddMovieForm() {
     <Card className="w-full max-w-2xl bg-secondary rounded-xl border-[3px] border-black shadow-[8px_8px_0px_0px_#000]">
       <CardHeader>
         <CardTitle className="font-headline text-2xl">Add a New Film</CardTitle>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
-            <span className="font-bold text-sm">CURRENT USER:</span>
-            <Tabs value={currentUser} onValueChange={(value) => setCurrentUser(value as User)} className="w-full sm:w-auto">
-                <TabsList className="grid w-full grid-cols-2 bg-background border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] p-0 h-auto">
-                    <TabsTrigger value="User A" className="rounded-l-md data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none border-r-[3px] border-black">User A</TabsTrigger>
-                    <TabsTrigger value="User B" className="rounded-r-md data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none">User B</TabsTrigger>
-                </TabsList>
-            </Tabs>
-        </div>
       </CardHeader>
       <CardContent>
         {!selectedMovie ? (
