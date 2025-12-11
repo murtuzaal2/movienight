@@ -266,7 +266,7 @@ export default function ListsPage() {
                           )}
                         </div>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                          <DropdownMenuTrigger asChild onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -276,13 +276,13 @@ export default function ListsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="border-[2px] border-black">
-                            <DropdownMenuItem onClick={(e) => { e.preventDefault(); openRenameDialog(list); }}>
+                            <DropdownMenuItem onClick={(e) => { e.preventDefault(); e.stopPropagation(); openRenameDialog(list); }}>
                               <Pencil className="h-4 w-4 mr-2" />
                               Rename
                             </DropdownMenuItem>
                             {!list.isDefault && (
                               <DropdownMenuItem
-                                onClick={(e) => { e.preventDefault(); openDeleteDialog(list); }}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteDialog(list); }}
                                 className="text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -318,7 +318,13 @@ export default function ListsPage() {
         </div>
 
         {/* Rename Dialog */}
-        <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <Dialog open={isRenameOpen} onOpenChange={(open) => {
+          setIsRenameOpen(open);
+          if (!open) {
+            setSelectedList(null);
+            setNewListName('');
+          }
+        }}>
           <DialogContent className="border-[3px] border-black shadow-[8px_8px_0px_0px_#000]">
             <DialogHeader>
               <DialogTitle>Rename List</DialogTitle>
@@ -345,7 +351,12 @@ export default function ListsPage() {
         </Dialog>
 
         {/* Delete Confirmation */}
-        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialog open={isDeleteOpen} onOpenChange={(open) => {
+          setIsDeleteOpen(open);
+          if (!open) {
+            setSelectedList(null);
+          }
+        }}>
           <AlertDialogContent className="border-[3px] border-black shadow-[8px_8px_0px_0px_#000]">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete List</AlertDialogTitle>
