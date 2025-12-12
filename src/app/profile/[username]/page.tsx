@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Film, User, ArrowLeft, Loader2, List, Lock } from 'lucide-react';
+import { Film, ArrowLeft, Loader2, List, Lock, X } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,24 @@ import {
   getFollowing,
 } from '@/app/actions';
 import type { UserProfile, MovieList } from '@/lib/types';
+
+// Get initials from name
+function getInitials(displayName: string | null | undefined, username: string | null | undefined, email: string | null | undefined): string {
+  if (displayName) {
+    const parts = displayName.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return displayName[0].toUpperCase();
+  }
+  if (username) {
+    return username[0].toUpperCase();
+  }
+  if (email) {
+    return email[0].toUpperCase();
+  }
+  return '?';
+}
 
 export default function UserProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -111,7 +129,9 @@ export default function UserProfilePage() {
       <main className="min-h-screen bg-background font-body text-foreground">
         <div className="container mx-auto p-4 md:p-8">
           <div className="flex flex-col items-center justify-center min-h-[50vh]">
-            <User className="h-16 w-16 text-muted-foreground mb-4" />
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4 border-[3px] border-black">
+              <span className="text-2xl font-bold text-muted-foreground">?</span>
+            </div>
             <h1 className="text-2xl font-headline font-bold mb-2">User Not Found</h1>
             <p className="text-muted-foreground mb-4">The user @{username} doesn&apos;t exist.</p>
             <Link href="/lists">
@@ -122,6 +142,8 @@ export default function UserProfilePage() {
       </main>
     );
   }
+
+  const profileInitials = getInitials(profile.displayName, profile.username, profile.email);
 
   return (
     <main className="min-h-screen bg-background font-body text-foreground">
@@ -136,8 +158,9 @@ export default function UserProfilePage() {
 
           {/* Profile Header */}
           <div className="flex flex-col items-center">
-            <div className="h-24 w-24 rounded-full bg-primary/10 border-[3px] border-black flex items-center justify-center mb-4">
-              <User className="h-12 w-12 text-primary" />
+            {/* Profile Picture with Initial */}
+            <div className="h-24 w-24 rounded-full bg-primary border-[3px] border-black flex items-center justify-center mb-4 shadow-[4px_4px_0px_0px_#000]">
+              <span className="text-4xl font-bold text-primary-foreground">{profileInitials}</span>
             </div>
 
             <h1 className="text-2xl md:text-3xl font-headline font-bold text-center">
@@ -229,29 +252,32 @@ export default function UserProfilePage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Followers</CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => setShowFollowers(false)}>
-                  <span className="text-xl">&times;</span>
+                  <X className="h-4 w-4" />
                 </Button>
               </CardHeader>
               <CardContent className="max-h-96 overflow-y-auto">
                 {followers.length > 0 ? (
                   <ul className="divide-y divide-border">
-                    {followers.map((follower) => (
-                      <li key={follower.uid}>
-                        <Link
-                          href={`/profile/${follower.username}`}
-                          onClick={() => setShowFollowers(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
-                        >
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{follower.displayName || follower.username}</p>
-                            <p className="text-sm text-muted-foreground">@{follower.username}</p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
+                    {followers.map((follower) => {
+                      const followerInitial = getInitials(follower.displayName, follower.username, follower.email);
+                      return (
+                        <li key={follower.uid}>
+                          <Link
+                            href={`/profile/${follower.username}`}
+                            onClick={() => setShowFollowers(false)}
+                            className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
+                          >
+                            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center border-[2px] border-black">
+                              <span className="text-lg font-bold text-primary-foreground">{followerInitial}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{follower.displayName || follower.username}</p>
+                              <p className="text-sm text-muted-foreground">@{follower.username}</p>
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-center text-muted-foreground py-4">No followers yet</p>
@@ -268,29 +294,32 @@ export default function UserProfilePage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Following</CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => setShowFollowing(false)}>
-                  <span className="text-xl">&times;</span>
+                  <X className="h-4 w-4" />
                 </Button>
               </CardHeader>
               <CardContent className="max-h-96 overflow-y-auto">
                 {following.length > 0 ? (
                   <ul className="divide-y divide-border">
-                    {following.map((followedUser) => (
-                      <li key={followedUser.uid}>
-                        <Link
-                          href={`/profile/${followedUser.username}`}
-                          onClick={() => setShowFollowing(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
-                        >
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{followedUser.displayName || followedUser.username}</p>
-                            <p className="text-sm text-muted-foreground">@{followedUser.username}</p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
+                    {following.map((followedUser) => {
+                      const followingInitial = getInitials(followedUser.displayName, followedUser.username, followedUser.email);
+                      return (
+                        <li key={followedUser.uid}>
+                          <Link
+                            href={`/profile/${followedUser.username}`}
+                            onClick={() => setShowFollowing(false)}
+                            className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
+                          >
+                            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center border-[2px] border-black">
+                              <span className="text-lg font-bold text-primary-foreground">{followingInitial}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{followedUser.displayName || followedUser.username}</p>
+                              <p className="text-sm text-muted-foreground">@{followedUser.username}</p>
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-center text-muted-foreground py-4">Not following anyone yet</p>
