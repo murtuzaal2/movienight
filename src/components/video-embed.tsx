@@ -56,28 +56,123 @@ function TikTokEmbed({ videoId, url }: { videoId: string; url: string }) {
   );
 }
 
-// Instagram Embed Component - using direct iframe which is more reliable
+// Instagram Embed Component - official blockquote + process() call
 function InstagramEmbed({ videoId, url }: { videoId: string; url: string }) {
-  // Instagram iframe embed URL - works more reliably than blockquote + script
-  const embedUrl = `https://www.instagram.com/reel/${videoId}/embed/`;
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const embedUrl = `https://www.instagram.com/reel/${videoId}/`;
+
+  // After component mounts and script loads, call process() to render the embed
+  useEffect(() => {
+    if (scriptLoaded) {
+      // This is the key fix - tell Instagram to process newly added blockquotes
+      const win = window as any;
+      if (win.instgrm?.Embeds?.process) {
+        win.instgrm.Embeds.process();
+      }
+    }
+  }, [scriptLoaded, videoId]);
 
   return (
     <div className="flex justify-center w-full">
-      <div style={{ width: '100%', maxWidth: '400px' }}>
-        <iframe
-          src={embedUrl}
-          style={{
-            width: '100%',
-            height: '600px',
-            border: 'none',
-            borderRadius: '8px',
-            overflow: 'hidden',
-          }}
-          allowFullScreen
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          title="Instagram Reel"
-        />
-      </div>
+      <blockquote
+        className="instagram-media"
+        data-instgrm-permalink={embedUrl}
+        data-instgrm-version="14"
+        style={{
+          background: '#FFF',
+          border: 0,
+          borderRadius: '3px',
+          boxShadow: '0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15)',
+          margin: '1px',
+          maxWidth: '400px',
+          minWidth: '326px',
+          padding: 0,
+          width: '99.375%',
+        }}
+      >
+        <div style={{ padding: '16px' }}>
+          <a
+            href={embedUrl}
+            style={{
+              background: '#FFFFFF',
+              lineHeight: 0,
+              padding: '0 0',
+              textAlign: 'center',
+              textDecoration: 'none',
+              width: '100%',
+              display: 'block',
+            }}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+              <div
+                style={{
+                  backgroundColor: '#F4F4F4',
+                  borderRadius: '50%',
+                  height: '40px',
+                  marginRight: '14px',
+                  width: '40px',
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center' }}>
+                <div
+                  style={{
+                    backgroundColor: '#F4F4F4',
+                    borderRadius: '4px',
+                    height: '14px',
+                    marginBottom: '6px',
+                    width: '100px',
+                  }}
+                />
+                <div
+                  style={{
+                    backgroundColor: '#F4F4F4',
+                    borderRadius: '4px',
+                    height: '14px',
+                    width: '60px',
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '19% 0' }} />
+            <div
+              style={{
+                display: 'block',
+                height: '50px',
+                margin: '0 auto 12px',
+                width: '50px',
+              }}
+            >
+              <Instagram className="w-full h-full text-[#E4405F]" />
+            </div>
+            <div style={{ paddingTop: '8px' }}>
+              <div
+                style={{
+                  color: '#3897f0',
+                  fontFamily: 'Arial,sans-serif',
+                  fontSize: '14px',
+                  fontWeight: 550,
+                  lineHeight: '18px',
+                }}
+              >
+                View this post on Instagram
+              </div>
+            </div>
+          </a>
+          <p style={{ color: '#c9c8cd', fontFamily: 'Arial,sans-serif', fontSize: '14px', lineHeight: '17px', marginBottom: 0, marginTop: '8px', textAlign: 'center' }}>
+            <a href={embedUrl} style={{ color: '#c9c8cd', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
+              Tap to play
+            </a>
+          </p>
+        </div>
+      </blockquote>
+      <Script
+        async
+        src="https://www.instagram.com/embed.js"
+        strategy="lazyOnload"
+        onLoad={() => setScriptLoaded(true)}
+      />
     </div>
   );
 }
