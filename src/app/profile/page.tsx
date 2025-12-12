@@ -3,12 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Film, User, Users, ArrowLeft, Pencil, Check, X, Loader2, List, Globe, Lock } from 'lucide-react';
+import { Film, ArrowLeft, Pencil, Check, X, Loader2, List, Globe, Lock, MoreVertical } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, orderBy, query, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { UserSearch } from '@/components/user-search';
 import { useToast } from '@/hooks/use-toast';
 import { updateUsername, getFollowers, getFollowing, toggleListVisibility } from '@/app/actions';
@@ -16,6 +24,24 @@ import type { UserProfile, MovieList } from '@/lib/types';
 
 const retroButtonClass = "border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all duration-200";
 const retroInputClass = "border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] focus:shadow-[2px_2px_0px_0px_#000] focus:translate-x-0.5 focus:translate-y-0.5 transition-all duration-200";
+
+// Get initials from name
+function getInitials(displayName: string | null | undefined, username: string | null | undefined, email: string | null | undefined): string {
+  if (displayName) {
+    const parts = displayName.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return displayName[0].toUpperCase();
+  }
+  if (username) {
+    return username[0].toUpperCase();
+  }
+  if (email) {
+    return email[0].toUpperCase();
+  }
+  return '?';
+}
 
 export default function MyProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -97,7 +123,7 @@ export default function MyProfilePage() {
     }
   };
 
-  const handleToggleVisibility = async (listId: string) => {
+  const handleToggleVisibility = async (listId: string, currentlyPublic: boolean) => {
     if (!user) return;
     const result = await toggleListVisibility(user.uid, listId);
     if (result.error) {
@@ -120,6 +146,8 @@ export default function MyProfilePage() {
     );
   }
 
+  const initials = getInitials(userProfile?.displayName, userProfile?.username, user.email);
+
   return (
     <main className="min-h-screen bg-background font-body text-foreground">
       <div className="container mx-auto p-4 md:p-8">
@@ -135,8 +163,9 @@ export default function MyProfilePage() {
 
           {/* Profile Header */}
           <div className="flex flex-col items-center">
-            <div className="h-24 w-24 rounded-full bg-primary/10 border-[3px] border-black flex items-center justify-center mb-4">
-              <User className="h-12 w-12 text-primary" />
+            {/* Profile Picture with Initial */}
+            <div className="h-24 w-24 rounded-full bg-primary border-[3px] border-black flex items-center justify-center mb-4 shadow-[4px_4px_0px_0px_#000]">
+              <span className="text-4xl font-bold text-primary-foreground">{initials}</span>
             </div>
 
             <h1 className="text-2xl md:text-3xl font-headline font-bold text-center">
@@ -227,39 +256,93 @@ export default function MyProfilePage() {
             </div>
           ) : lists && lists.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {lists.map((list) => (
-                <Card
-                  key={list.id}
-                  className="border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000]"
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <List className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">{list.name}</CardTitle>
+              {lists.map((list) => {
+                const isPublic = list.isPublic !== false;
+                return (
+                  <Card
+                    key={list.id}
+                    className="border-[3px] border-black rounded-lg shadow-[4px_4px_0px_0px_#000] md:hover:shadow-[2px_2px_0px_0px_#000] md:hover:translate-x-0.5 md:hover:translate-y-0.5 transition-all duration-200 cursor-pointer group"
+                    onClick={() => router.push(`/lists/${list.id}`)}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          <List className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-lg">{list.name}</CardTitle>
+                          {list.isDefault && (
+                            <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="border-[2px] border-black w-56">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/lists/${list.id}`);
+                              }}
+                            >
+                              <List className="h-4 w-4 mr-2" />
+                              Go to List
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <div
+                              className="flex items-center justify-between px-2 py-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center gap-2">
+                                {isPublic ? (
+                                  <Globe className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <Lock className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <span className="text-sm">
+                                  {isPublic ? 'Public' : 'Private'}
+                                </span>
+                              </div>
+                              <Switch
+                                checked={isPublic}
+                                onCheckedChange={() => handleToggleVisibility(list.id, isPublic)}
+                              />
+                            </div>
+                            <p className="px-2 py-1 text-xs text-muted-foreground">
+                              {isPublic ? 'Followers can see this list' : 'Only you can see this list'}
+                            </p>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleToggleVisibility(list.id)}
-                        className="h-8 w-8"
-                        title={list.isPublic !== false ? 'Make private' : 'Make public'}
-                      >
-                        {list.isPublic !== false ? (
-                          <Globe className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <CardDescription className="flex items-center gap-2">
+                        {isPublic ? (
+                          <>
+                            <Globe className="h-3 w-3 text-green-600" />
+                            <span>Public</span>
+                          </>
                         ) : (
-                          <Lock className="h-4 w-4 text-muted-foreground" />
+                          <>
+                            <Lock className="h-3 w-3" />
+                            <span>Private</span>
+                          </>
                         )}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {list.isPublic !== false ? 'Visible to followers' : 'Only visible to you'}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+                        <span className="text-muted-foreground">•</span>
+                        <span>Click to view</span>
+                      </CardDescription>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           ) : (
             <p className="text-muted-foreground text-center py-8">No lists yet</p>
@@ -279,23 +362,26 @@ export default function MyProfilePage() {
               <CardContent className="max-h-96 overflow-y-auto">
                 {followers.length > 0 ? (
                   <ul className="divide-y divide-border">
-                    {followers.map((profile) => (
-                      <li key={profile.uid}>
-                        <Link
-                          href={`/profile/${profile.username}`}
-                          onClick={() => setShowFollowers(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
-                        >
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{profile.displayName || profile.username}</p>
-                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
+                    {followers.map((profile) => {
+                      const followerInitial = getInitials(profile.displayName, profile.username, profile.email);
+                      return (
+                        <li key={profile.uid}>
+                          <Link
+                            href={`/profile/${profile.username}`}
+                            onClick={() => setShowFollowers(false)}
+                            className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
+                          >
+                            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center border-[2px] border-black">
+                              <span className="text-lg font-bold text-primary-foreground">{followerInitial}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{profile.displayName || profile.username}</p>
+                              <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-center text-muted-foreground py-4">No followers yet</p>
@@ -318,23 +404,26 @@ export default function MyProfilePage() {
               <CardContent className="max-h-96 overflow-y-auto">
                 {following.length > 0 ? (
                   <ul className="divide-y divide-border">
-                    {following.map((profile) => (
-                      <li key={profile.uid}>
-                        <Link
-                          href={`/profile/${profile.username}`}
-                          onClick={() => setShowFollowing(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
-                        >
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <User className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{profile.displayName || profile.username}</p>
-                            <p className="text-sm text-muted-foreground">@{profile.username}</p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
+                    {following.map((profile) => {
+                      const followingInitial = getInitials(profile.displayName, profile.username, profile.email);
+                      return (
+                        <li key={profile.uid}>
+                          <Link
+                            href={`/profile/${profile.username}`}
+                            onClick={() => setShowFollowing(false)}
+                            className="flex items-center gap-3 py-3 hover:opacity-70 transition-opacity"
+                          >
+                            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center border-[2px] border-black">
+                              <span className="text-lg font-bold text-primary-foreground">{followingInitial}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{profile.displayName || profile.username}</p>
+                              <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="text-center text-muted-foreground py-4">Not following anyone yet</p>
