@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Film, ArrowLeft, Users, AlertTriangle } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
@@ -18,12 +18,20 @@ export default function ListDetailPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const listId = params.listId as string;
   const firestore = useFirestore();
 
-  // State for collaborative list lookup
-  const [collaborativeListOwner, setCollaborativeListOwner] = useState<string | null>(null);
+  // Check if owner was passed in query params (from invite acceptance)
+  const ownerFromQuery = searchParams.get('owner');
+
+  // State for collaborative list lookup - initialize from query param if available
+  const [collaborativeListOwner, setCollaborativeListOwner] = useState<string | null>(ownerFromQuery);
   const [isCheckingCollab, setIsCheckingCollab] = useState(false);
+  // Track if we've completed all lookup attempts (for terminal state)
+  const [lookupComplete, setLookupComplete] = useState(false);
+  // Safety timeout to prevent infinite loading
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
   // Determine the effective owner ID (user's own or collaborative)
   const effectiveOwnerId = collaborativeListOwner || user?.uid;
@@ -56,6 +64,22 @@ export default function ListDetailPage() {
 
   const { data: movies, isLoading: isLoadingMovies, error: moviesError } = useCollection<Movie>(moviesQuery);
 
+  // Safety timeout - if loading takes more than 10 seconds, show error
+  // Cancel timer if we successfully load data
+  useEffect(() => {
+    // If we already have data, no need for timeout
+    if (ownListData || collabListData) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setLoadingTimedOut(true);
+      setLookupComplete(true);
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, [listId, ownListData, collabListData]);
+
   // Check for permission errors - handle both Error and FirestoreError types
   const isPermissionError = (error: Error | null | undefined): boolean => {
     if (!error) return false;
@@ -71,26 +95,69 @@ export default function ListDetailPage() {
     isPermissionError(moviesError);
 
   // Check for collaborative lists if own list not found
+  // Also fallback to lookup if query param owner didn't work
   useEffect(() => {
     async function checkCollaborativeLists() {
-      if (!user || isLoadingOwnList || ownListData || isCheckingCollab) return;
+      // If owner from query is the current user, clear it (it's their own list)
+      if (ownerFromQuery && user && ownerFromQuery === user.uid) {
+        setCollaborativeListOwner(null);
+        return;
+      }
 
-      setIsCheckingCollab(true);
-      try {
-        const result = await getCollaborativeLists(user.uid);
-        const collabList = result.lists?.find(l => l.id === listId);
-        if (collabList) {
-          setCollaborativeListOwner(collabList.ownerId);
+      // Skip if we found own list or still loading own list
+      if (!user || isLoadingOwnList || ownListData) return;
+
+      // Skip if already checking
+      if (isCheckingCollab) return;
+
+      // If we have a query param owner AND collab data loaded successfully, we're done
+      if (collaborativeListOwner && !isLoadingCollabList && collabListData) {
+        setLookupComplete(true);
+        return;
+      }
+
+      // If query param owner failed (no data after loading), fallback to lookup
+      const queryParamFailed = ownerFromQuery && collaborativeListOwner === ownerFromQuery &&
+        !isLoadingCollabList && !collabListData && !collabListError;
+
+      // Skip lookup if we have a working collaborative owner (data loaded successfully)
+      if (collaborativeListOwner && collabListData) {
+        return;
+      }
+
+      // If query param worked (still loading), wait for it
+      if (collaborativeListOwner && isLoadingCollabList) {
+        return;
+      }
+
+      // If lookup already completed, don't retry
+      if (lookupComplete) return;
+
+      // Perform lookup if:
+      // - No owner set, OR
+      // - Query param owner failed to load the list
+      if (!collaborativeListOwner || queryParamFailed) {
+        setIsCheckingCollab(true);
+        try {
+          const result = await getCollaborativeLists(user.uid);
+          const collabList = result.lists?.find(l => l.id === listId);
+          if (collabList) {
+            setCollaborativeListOwner(collabList.ownerId);
+          } else {
+            // No collaborative list found - mark lookup as complete
+            setLookupComplete(true);
+          }
+        } catch (error) {
+          console.error('Failed to check collaborative lists:', error);
+          setLookupComplete(true);
+        } finally {
+          setIsCheckingCollab(false);
         }
-      } catch (error) {
-        console.error('Failed to check collaborative lists:', error);
-      } finally {
-        setIsCheckingCollab(false);
       }
     }
 
     checkCollaborativeLists();
-  }, [user, listId, isLoadingOwnList, ownListData, isCheckingCollab]);
+  }, [user, listId, isLoadingOwnList, ownListData, isCheckingCollab, ownerFromQuery, collaborativeListOwner, isLoadingCollabList, collabListData, collabListError, lookupComplete]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -116,8 +183,17 @@ export default function ListDetailPage() {
     );
   }
 
-  // Show loading while checking for collaborative lists
-  if (isCheckingCollab || (isLoadingOwnList && !ownListData)) {
+  // Show loading while:
+  // 1. Loading own list
+  // 2. Checking for collaborative lists
+  // 3. Loading collaborative list (after we've identified there's one)
+  // 4. Haven't completed lookup yet AND don't have any list data
+  const isLoading = isLoadingOwnList ||
+    isCheckingCollab ||
+    (collaborativeListOwner && isLoadingCollabList) ||
+    (!ownListData && !collabListData && !lookupComplete && !hasPermissionError);
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <Film className="h-12 w-12 text-primary animate-spin" />
@@ -147,15 +223,21 @@ export default function ListDetailPage() {
     );
   }
 
-  // List not found
+  // List not found or loading timed out
   if (!listData && !isLoadingList) {
     return (
       <main className="min-h-screen bg-background font-body text-foreground">
         <div className="container mx-auto p-4 md:p-8">
           <div className="flex flex-col items-center justify-center min-h-[50vh]">
             <Film className="h-16 w-16 text-muted-foreground mb-4" />
-            <h1 className="text-2xl font-headline font-bold mb-2">List Not Found</h1>
-            <p className="text-muted-foreground mb-4">This list doesn&apos;t exist or you don&apos;t have access.</p>
+            <h1 className="text-2xl font-headline font-bold mb-2">
+              {loadingTimedOut ? 'Could Not Load List' : 'List Not Found'}
+            </h1>
+            <p className="text-muted-foreground mb-4 text-center max-w-md">
+              {loadingTimedOut
+                ? 'We couldn\'t resolve this list. If you just accepted an invite, please try refreshing or ask the owner to resend the invite link.'
+                : 'This list doesn\'t exist or you don\'t have access.'}
+            </p>
             <Link href="/lists">
               <Button>Go to My Lists</Button>
             </Link>
