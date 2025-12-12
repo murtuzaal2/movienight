@@ -404,7 +404,7 @@ export async function migrateMoviesToList(userId: string, listId: string) {
 
 /**
  * Search for users by username, email, or display name.
- * More robust search that handles various edge cases.
+ * Uses a simple but reliable approach - fetches users and filters.
  */
 export async function searchUsers(query: string, currentUserId: string) {
   const db = getDb();
@@ -417,71 +417,66 @@ export async function searchUsers(query: string, currentUserId: string) {
     const queryLower = query.toLowerCase().trim();
     const usersMap = new Map<string, UserProfile>();
 
-    // Search by username (prefix match) - only if username field exists
-    try {
-      const usernameResults = await db.collection('users')
-        .where('username', '>=', queryLower)
-        .where('username', '<=', queryLower + '\uf8ff')
-        .limit(10)
-        .get();
+    // Simple approach: Get all users and filter client-side
+    // This is reliable and works without needing Firestore indexes
+    // For apps with <1000 users, this is perfectly fine
+    const allUsersSnapshot = await db.collection('users').get();
 
-      usernameResults.docs.forEach((doc) => {
-        const data = doc.data() as UserProfile;
-        if (data.uid !== currentUserId) {
-          usersMap.set(data.uid, data);
-        }
-      });
-    } catch (e) {
-      console.log('Username search failed (may need index):', e);
-    }
+    allUsersSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
 
-    // Search by email (prefix match)
-    try {
-      const emailResults = await db.collection('users')
-        .where('email', '>=', queryLower)
-        .where('email', '<=', queryLower + '\uf8ff')
-        .limit(10)
-        .get();
+      // Skip current user
+      const docUid = data.uid || doc.id;
+      if (docUid === currentUserId) return;
 
-      emailResults.docs.forEach((doc) => {
-        const data = doc.data() as UserProfile;
-        if (data.uid !== currentUserId && !usersMap.has(data.uid)) {
-          usersMap.set(data.uid, data);
-        }
-      });
-    } catch (e) {
-      console.log('Email search failed (may need index):', e);
-    }
+      // Get searchable fields, handling missing/null values
+      const username = (data.username || '').toLowerCase();
+      const email = (data.email || '').toLowerCase();
+      const displayName = (data.displayName || '').toLowerCase();
 
-    // Fallback: Get all users and filter client-side if no results
-    // This is less efficient but ensures we find users even without indexes
-    if (usersMap.size === 0) {
-      const allUsersSnapshot = await db.collection('users').limit(50).get();
+      // Check if any field contains or starts with the query
+      const matchesUsername = username && (username.includes(queryLower) || username.startsWith(queryLower));
+      const matchesEmail = email && (email.includes(queryLower) || email.split('@')[0].includes(queryLower));
+      const matchesDisplayName = displayName && displayName.includes(queryLower);
 
-      allUsersSnapshot.docs.forEach((doc) => {
-        const data = doc.data() as UserProfile;
-        if (data.uid === currentUserId) return;
+      if (matchesUsername || matchesEmail || matchesDisplayName) {
+        // Construct the user profile with fallbacks
+        const userProfile: UserProfile = {
+          uid: docUid,
+          email: data.email || '',
+          displayName: data.displayName || null,
+          photoURL: data.photoURL || null,
+          username: data.username || null,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          followersCount: data.followersCount || 0,
+          followingCount: data.followingCount || 0,
+        };
+        usersMap.set(docUid, userProfile);
+      }
+    });
 
-        const username = (data.username || '').toLowerCase();
-        const email = (data.email || '').toLowerCase();
-        const displayName = (data.displayName || '').toLowerCase();
+    // Sort by relevance: exact username match first, then prefix match, then contains
+    const users = Array.from(usersMap.values())
+      .sort((a, b) => {
+        const aUsername = (a.username || '').toLowerCase();
+        const bUsername = (b.username || '').toLowerCase();
 
-        if (
-          username.includes(queryLower) ||
-          email.includes(queryLower) ||
-          displayName.includes(queryLower)
-        ) {
-          usersMap.set(data.uid, data);
-        }
-      });
-    }
+        // Exact match comes first
+        if (aUsername === queryLower && bUsername !== queryLower) return -1;
+        if (bUsername === queryLower && aUsername !== queryLower) return 1;
 
-    const users = Array.from(usersMap.values()).slice(0, 10);
+        // Prefix match comes next
+        if (aUsername.startsWith(queryLower) && !bUsername.startsWith(queryLower)) return -1;
+        if (bUsername.startsWith(queryLower) && !aUsername.startsWith(queryLower)) return 1;
+
+        return 0;
+      })
+      .slice(0, 10);
 
     return { users };
   } catch (error) {
     console.error('Failed to search users:', error);
-    return { error: 'Failed to search users.' };
+    return { error: 'Failed to search users.', users: [] };
   }
 }
 
