@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ExternalLink, Play } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ExternalLink, Play, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { parseVideoUrl, getProviderDisplayName, type ParsedVideo } from '@/lib/video-utils';
@@ -18,6 +18,22 @@ type VideoEmbedProps = {
   autoPlay?: boolean;
 };
 
+// Detect if user is on mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+      setIsMobile(mobileRegex.test(userAgent.toLowerCase()));
+    };
+    checkMobile();
+  }, []);
+
+  return isMobile;
+}
+
 function ProviderIcon({ provider }: { provider: ParsedVideo['provider'] }) {
   switch (provider) {
     case 'tiktok':
@@ -31,14 +47,69 @@ function ProviderIcon({ provider }: { provider: ParsedVideo['provider'] }) {
   }
 }
 
-// TikTok Embed Component - matches the working example pattern
+// Mobile-friendly fallback card for when embeds don't work
+function MobileFallback({ url, provider }: { url: string; provider: string }) {
+  const ProviderIconComponent = () => {
+    switch (provider) {
+      case 'tiktok':
+        return <TiktokIcon className="h-12 w-12" />;
+      case 'instagram':
+        return <Instagram className="h-12 w-12 text-[#E4405F]" />;
+      default:
+        return <Play className="h-12 w-12" />;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center p-6 bg-gradient-to-b from-secondary to-secondary/50 rounded-lg min-h-[300px] gap-4">
+      <ProviderIconComponent />
+      <p className="text-sm text-muted-foreground text-center">
+        {provider === 'tiktok'
+          ? 'TikTok videos work best in the TikTok app'
+          : 'Tap below to watch the video'}
+      </p>
+      <Button asChild className={retroButtonClass}>
+        <Link href={url} target="_blank" rel="noopener noreferrer">
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Watch on {getProviderDisplayName(provider as any)}
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+// TikTok Embed Component with mobile detection
 function TikTokEmbed({ videoId, url }: { videoId: string; url: string }) {
+  const isMobile = useIsMobile();
+  const [embedFailed, setEmbedFailed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // Extract username from URL if possible
   const usernameMatch = url.match(/@([\w.-]+)/);
   const username = usernameMatch ? usernameMatch[1] : 'user';
 
+  // Check if embed rendered after a timeout
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Check if TikTok embed rendered (it adds an iframe)
+      if (containerRef.current) {
+        const iframe = containerRef.current.querySelector('iframe');
+        if (!iframe) {
+          setEmbedFailed(true);
+        }
+      }
+    }, 5000); // 5 second timeout
+
+    return () => clearTimeout(timer);
+  }, [videoId]);
+
+  // On mobile, show fallback directly since TikTok embeds are unreliable
+  if (isMobile || embedFailed) {
+    return <MobileFallback url={url} provider="tiktok" />;
+  }
+
   return (
-    <div className="flex justify-center w-full">
+    <div ref={containerRef} className="flex justify-center w-full">
       <blockquote
         className="tiktok-embed"
         cite={url}
@@ -56,24 +127,68 @@ function TikTokEmbed({ videoId, url }: { videoId: string; url: string }) {
   );
 }
 
-// Instagram Embed Component - official blockquote + process() call
+// Instagram Embed Component with retry logic
 function InstagramEmbed({ videoId, url }: { videoId: string; url: string }) {
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [embedProcessed, setEmbedProcessed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const embedUrl = `https://www.instagram.com/reel/${videoId}/`;
 
-  // After component mounts and script loads, call process() to render the embed
+  // Process Instagram embed with retry logic
   useEffect(() => {
-    if (scriptLoaded) {
-      // This is the key fix - tell Instagram to process newly added blockquotes
+    if (!scriptLoaded) return;
+
+    const processEmbed = () => {
       const win = window as any;
       if (win.instgrm?.Embeds?.process) {
         win.instgrm.Embeds.process();
+        setEmbedProcessed(true);
+        return true;
       }
-    }
+      return false;
+    };
+
+    // Try immediately
+    if (processEmbed()) return;
+
+    // Retry with increasing delays
+    const retryDelays = [100, 300, 500, 1000, 2000];
+    let currentRetry = 0;
+
+    const retryTimer = setInterval(() => {
+      if (processEmbed() || currentRetry >= retryDelays.length) {
+        clearInterval(retryTimer);
+        setRetryCount(currentRetry);
+      }
+      currentRetry++;
+    }, retryDelays[Math.min(currentRetry, retryDelays.length - 1)]);
+
+    return () => clearInterval(retryTimer);
   }, [scriptLoaded, videoId]);
 
+  // Check if embed actually rendered after processing
+  useEffect(() => {
+    if (!embedProcessed) return;
+
+    const checkTimer = setTimeout(() => {
+      if (containerRef.current) {
+        const iframe = containerRef.current.querySelector('iframe');
+        if (!iframe) {
+          // Embed didn't render, try processing again
+          const win = window as any;
+          if (win.instgrm?.Embeds?.process) {
+            win.instgrm.Embeds.process();
+          }
+        }
+      }
+    }, 2000);
+
+    return () => clearTimeout(checkTimer);
+  }, [embedProcessed]);
+
   return (
-    <div className="flex justify-center w-full">
+    <div ref={containerRef} className="flex justify-center w-full">
       <blockquote
         className="instagram-media"
         data-instgrm-permalink={embedUrl}
@@ -177,7 +292,7 @@ function InstagramEmbed({ videoId, url }: { videoId: string; url: string }) {
   );
 }
 
-// YouTube Embed Component - iframe with autoplay/loop params
+// YouTube Embed Component - most reliable, works everywhere
 function YouTubeEmbed({ videoId }: { videoId: string }) {
   return (
     <div className="flex justify-center w-full">
@@ -230,7 +345,7 @@ export function VideoEmbed({ url, autoLoad = false }: VideoEmbedProps) {
   // Show "Click to load" button before loading the iframe
   if (!isLoaded) {
     return (
-      <div className="relative w-full aspect-[9/16] max-h-[500px] bg-secondary rounded-lg border-[3px] border-black overflow-hidden">
+      <div className="relative w-full aspect-[9/16] max-h-[500px] bg-secondary rounded-lg border-[3px] border-black overflow-hidden touch-manipulation">
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <ProviderIcon provider={parsedVideo.provider} />
@@ -288,7 +403,7 @@ export function VideoPreview({ url, onClick }: VideoPreviewProps) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full border-[2px] border-black hover:bg-accent transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full border-[2px] border-black hover:bg-accent active:bg-accent transition-colors touch-manipulation"
     >
       <ProviderIcon provider={parsedVideo.provider} />
       <span className="text-sm font-bold">{getProviderDisplayName(parsedVideo.provider)}</span>
