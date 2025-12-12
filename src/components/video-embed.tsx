@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ExternalLink, Play, AlertCircle } from 'lucide-react';
+import { ExternalLink, Play } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { parseVideoUrl, getProviderDisplayName, type ParsedVideo } from '@/lib/video-utils';
@@ -17,22 +17,6 @@ type VideoEmbedProps = {
   autoLoad?: boolean;
   autoPlay?: boolean;
 };
-
-// Detect if user is on mobile
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-      const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
-      setIsMobile(mobileRegex.test(userAgent.toLowerCase()));
-    };
-    checkMobile();
-  }, []);
-
-  return isMobile;
-}
 
 function ProviderIcon({ provider }: { provider: ParsedVideo['provider'] }) {
   switch (provider) {
@@ -78,51 +62,32 @@ function MobileFallback({ url, provider }: { url: string; provider: string }) {
   );
 }
 
-// TikTok Embed Component with mobile detection
+// TikTok Embed Component - using direct iframe player (more reliable than embed.js)
 function TikTokEmbed({ videoId, url }: { videoId: string; url: string }) {
-  const isMobile = useIsMobile();
-  const [embedFailed, setEmbedFailed] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // TikTok's direct player iframe - bypasses embed.js script hydration
+  // which often fails on mobile/iOS Safari due to third-party storage restrictions
+  // Docs: https://developers.tiktok.com/doc/embed-player
 
-  // Extract username from URL if possible
-  const usernameMatch = url.match(/@([\w.-]+)/);
-  const username = usernameMatch ? usernameMatch[1] : 'user';
+  // Check if videoId is a valid numeric ID (not a short code from vm.tiktok.com links)
+  // TikTok player requires the actual numeric video ID
+  const isValidVideoId = /^\d+$/.test(videoId);
 
-  // Check if embed rendered after a timeout
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Check if TikTok embed rendered (it adds an iframe)
-      if (containerRef.current) {
-        const iframe = containerRef.current.querySelector('iframe');
-        if (!iframe) {
-          setEmbedFailed(true);
-        }
-      }
-    }, 5000); // 5 second timeout
-
-    return () => clearTimeout(timer);
-  }, [videoId]);
-
-  // On mobile, show fallback directly since TikTok embeds are unreliable
-  if (isMobile || embedFailed) {
+  // If it's a short code (not numeric), show fallback with link to TikTok
+  if (!isValidVideoId) {
     return <MobileFallback url={url} provider="tiktok" />;
   }
 
   return (
-    <div ref={containerRef} className="flex justify-center w-full">
-      <blockquote
-        className="tiktok-embed"
-        cite={url}
-        data-video-id={videoId}
-        style={{ maxWidth: '325px', minWidth: '325px' }}
-      >
-        <section>
-          <a target="_blank" title={`@${username}`} href={`https://www.tiktok.com/@${username}?refer=embed`}>
-            @{username}
-          </a>
-        </section>
-      </blockquote>
-      <Script async src="https://www.tiktok.com/embed.js" strategy="lazyOnload" />
+    <div className="flex justify-center w-full">
+      <div style={{ width: '100%', maxWidth: '325px', aspectRatio: '9/16' }}>
+        <iframe
+          src={`https://www.tiktok.com/player/v1/${videoId}?music_info=1&description=1`}
+          style={{ width: '100%', height: '100%', border: 'none', borderRadius: '8px' }}
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+          title="TikTok video"
+        />
+      </div>
     </div>
   );
 }
