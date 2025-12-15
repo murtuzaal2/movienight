@@ -155,13 +155,14 @@ export function AvatarPicker({
           {/* Current selection preview */}
           <div className="flex justify-center">
             <div className="relative">
-              <div className="w-32 h-32 rounded-full border-[4px] border-black shadow-[6px_6px_0px_0px_#000] overflow-hidden bg-secondary">
+              <div className="relative w-32 h-32 rounded-full border-[4px] border-black shadow-[6px_6px_0px_0px_#000] overflow-hidden bg-secondary">
                 {selectedUrl ? (
                   <Image
                     src={selectedUrl}
                     alt="Selected avatar"
                     fill
                     className="object-cover"
+                    sizes="128px"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
