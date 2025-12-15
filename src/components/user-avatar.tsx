@@ -1,12 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser } from '@/firebase';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,11 +14,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from './ui/button';
 import { LogOut, User, Search } from 'lucide-react';
+import type { UserProfile } from '@/lib/types';
 
 export function UserAvatar() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const firestore = useFirestore();
+
+  // Get user profile from Firestore for the photoURL
+  const userDocRef = useMemoFirebase(() => {
+    if (!user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
 
   if (!user) {
     return null;
@@ -31,19 +38,21 @@ export function UserAvatar() {
     auth.signOut();
   };
 
-  const userInitial = user.email ? user.email.charAt(0).toUpperCase() : '?';
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-10 w-10 rounded-full border-[3px] border-black shadow-[4px_4px_0px_0px_#000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all duration-200"
+          className="relative h-10 w-10 rounded-full p-0 border-[3px] border-black shadow-[4px_4px_0px_0px_#000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all duration-200 overflow-hidden"
         >
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={user.photoURL ?? ''} alt={user.displayName ?? 'User'} />
-            <AvatarFallback>{userInitial}</AvatarFallback>
-          </Avatar>
+          <ProfileAvatar
+            photoURL={userProfile?.photoURL}
+            displayName={userProfile?.displayName || user.displayName}
+            username={userProfile?.username}
+            email={user.email}
+            size="md"
+            className="border-0 shadow-none"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56 border-[2px] border-black" align="end" forceMount>
