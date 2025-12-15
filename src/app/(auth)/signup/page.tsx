@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Film, Loader2 } from 'lucide-react';
+import { Film, Loader2, Popcorn, Star, Clapperboard, Heart } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useToast } from '@/hooks/use-toast';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -59,19 +59,31 @@ export default function SignUpPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4 relative">
-      <div className="absolute top-4 right-4">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Floating decorative elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <Popcorn className="absolute top-16 left-[8%] h-8 w-8 text-warning/30 animate-float" />
+        <Star className="absolute top-24 right-[12%] h-6 w-6 text-accent/40 animate-float-delayed" />
+        <Clapperboard className="absolute bottom-[25%] left-[10%] h-10 w-10 text-primary/20 animate-float-delayed" />
+        <Heart className="absolute bottom-[30%] right-[8%] h-7 w-7 text-destructive/25 animate-bounce-subtle" />
+      </div>
+
+      <div className="absolute top-4 right-4 z-20">
         <ThemeToggle />
       </div>
-      <div className="flex items-center gap-4 mb-6">
-        <Film className="h-10 w-10 md:h-12 md:w-12 text-primary" />
+
+      <div className="flex items-center gap-4 mb-6 relative z-10">
+        <div className="bg-primary p-2 rounded-lg border-[2px] border-black animate-pulse-shadow">
+          <Film className="h-8 w-8 md:h-10 md:w-10 text-primary-foreground" />
+        </div>
         <h1 className="text-4xl md:text-6xl font-headline font-bold text-center tracking-tighter">
           MovieNight
         </h1>
       </div>
-      <Card className="w-full max-w-sm bg-secondary rounded-xl border-[3px] border-black shadow-[8px_8px_0px_0px_#000]">
+
+      <Card className="w-full max-w-sm bg-secondary rounded-xl border-[3px] border-black shadow-[8px_8px_0px_0px_#000] relative z-10">
         <CardHeader>
-          <CardTitle>Create an Account</CardTitle>
+          <CardTitle className="font-headline">Create an Account</CardTitle>
           <CardDescription>Join MovieNight to start your watchlists.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,14 +124,19 @@ export default function SignUpPage() {
                 className={retroInputClass}
               />
             </div>
-            <Button type="submit" className={`w-full ${retroButtonClass}`} disabled={isLoading}>
+            <Button type="submit" className={`w-full ${retroButtonClass} bg-warning text-warning-foreground hover:bg-warning/90`} disabled={isLoading}>
               {isLoading ? <Loader2 className="animate-spin" /> : 'Create Account'}
             </Button>
           </form>
           <p className="mt-6 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" className="font-bold hover:underline">
+            <Link href="/login" className="font-bold text-primary hover:underline">
               Log In
+            </Link>
+          </p>
+          <p className="mt-2 text-center">
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+              ← Back to home
             </Link>
           </p>
         </CardContent>
