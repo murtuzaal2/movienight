@@ -1960,6 +1960,66 @@ export async function getCollaborativeLists(userId: string) {
 }
 
 /**
+ * Upload an avatar image to Firebase Storage.
+ * Receives base64 image data and returns the download URL.
+ */
+export async function uploadAvatar(
+  userId: string,
+  base64Data: string,
+  fileName: string,
+  mimeType: string
+): Promise<{ url?: string; error?: string }> {
+  try {
+    // Validate inputs
+    if (!userId || !base64Data || !fileName) {
+      return { error: 'Missing required fields.' };
+    }
+
+    // Validate mime type
+    if (!mimeType.startsWith('image/')) {
+      return { error: 'Invalid file type. Please upload an image.' };
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Validate file size (max 2MB)
+    if (buffer.length > 2 * 1024 * 1024) {
+      return { error: 'File too large. Maximum size is 2MB.' };
+    }
+
+    // Get Firebase Admin Storage
+    const { getStorage } = await import('firebase-admin/storage');
+    const adminApp = getFirebaseAdminApp();
+    const bucket = getStorage(adminApp).bucket();
+
+    // Create a unique file path
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `avatars/${userId}/${Date.now()}_${sanitizedFileName}`;
+
+    // Upload the file
+    const file = bucket.file(filePath);
+    await file.save(buffer, {
+      metadata: {
+        contentType: mimeType,
+        cacheControl: 'public, max-age=31536000',
+      },
+    });
+
+    // Make the file publicly accessible
+    await file.makePublic();
+
+    // Get the public URL
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+
+    return { url: publicUrl };
+  } catch (error) {
+    console.error('[uploadAvatar] Failed:', error);
+    return { error: 'Failed to upload image. Please try again.' };
+  }
+}
+
+/**
  * Update user's profile photo URL.
  */
 export async function updateProfilePhoto(userId: string, photoURL: string) {
