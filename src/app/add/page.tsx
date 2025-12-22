@@ -492,17 +492,63 @@ export default function AddPage() {
                       <p className="text-muted-foreground text-lg">{selectedMovie.year}</p>
                       <p className="text-sm text-primary mt-1 capitalize">{selectedMovie.mediaType}</p>
 
-                      {/* Selected List */}
-                      <div className="mt-4 p-3 bg-secondary rounded-xl border-[2px] border-border">
-                        <p className="text-sm text-muted-foreground">Adding to:</p>
-                        <p className="font-bold flex items-center gap-2">
-                          {allLists.find(l => l.id === selectedListId)?.isCollaborative ? (
-                            <Users className="h-4 w-4" />
-                          ) : (
-                            <List className="h-4 w-4" />
-                          )}
-                          {allLists.find(l => l.id === selectedListId)?.name || 'Unknown list'}
-                        </p>
+                      {/* Selected List - with dropdown to change */}
+                      <div className="mt-4">
+                        <label className="text-sm text-muted-foreground block mb-1">Adding to:</label>
+                        <Select value={selectedListId} onValueChange={handleListChange}>
+                          <SelectTrigger className="border-[2px] border-border rounded-xl bg-secondary h-auto py-2">
+                            <SelectValue>
+                              <span className="font-bold flex items-center gap-2">
+                                {allLists.find(l => l.id === selectedListId)?.isCollaborative ? (
+                                  <Users className="h-4 w-4" />
+                                ) : (
+                                  <List className="h-4 w-4" />
+                                )}
+                                {allLists.find(l => l.id === selectedListId)?.name || 'Select a list'}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="border-[3px] border-border rounded-xl">
+                            {/* Own lists */}
+                            {lists && lists.length > 0 && (
+                              <>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">My Lists</div>
+                                {lists.map((list) => (
+                                  <SelectItem key={list.id} value={list.id}>
+                                    <div className="flex items-center gap-2">
+                                      <List className="h-4 w-4" />
+                                      {list.name}
+                                      {list.isDefault && (
+                                        <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full ml-1">
+                                          Default
+                                        </span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                            {/* Collaborative lists */}
+                            {collaborativeLists.length > 0 && (
+                              <>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Shared Lists</div>
+                                {collaborativeLists.map((list) => (
+                                  <SelectItem key={`collab-confirm-${list.id}`} value={list.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Users className="h-4 w-4" />
+                                      {list.name}
+                                      {list.ownerUsername && (
+                                        <span className="text-xs text-muted-foreground ml-1">
+                                          by @{list.ownerUsername}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
