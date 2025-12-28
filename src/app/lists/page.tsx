@@ -41,7 +41,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { createList, renameList, deleteList, ensureUserProfile, migrateMoviesToList, toggleListVisibility, getCollaborativeLists } from '@/app/actions';
 import type { MovieList } from '@/lib/types';
-import { TrendingMovies } from '@/components/trending-movies';
 
 // Extended type for collaborative lists with owner info
 type CollaborativeList = MovieList & {
@@ -303,11 +302,6 @@ export default function ListsPage() {
             Your movie watchlists
           </p>
         </header>
-
-        {/* Trending Movies Section */}
-        <div className="mb-8 -mx-4 md:-mx-8">
-          <TrendingMovies />
-        </div>
 
         <div className="max-w-4xl mx-auto">
           {/* My Lists Section */}

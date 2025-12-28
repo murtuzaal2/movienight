@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addMovieToList, getCollaborativeLists } from '@/app/actions';
 import { collection, orderBy, query as firestoreQuery } from 'firebase/firestore';
 import type { SearchResult, TMDBSearchResult, TMDBTVSearchResult, MovieList } from '@/lib/types';
+import { TrendingMovies } from '@/components/trending-movies';
 
 // Extended type for lists that includes owner info for collaborative lists
 interface ListOption {
@@ -347,6 +348,11 @@ export default function AddPage() {
             <UserAvatar />
           </div>
         </header>
+
+        {/* Trending Movies Section */}
+        <div className="mb-8 -mx-4 md:-mx-8 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+          <TrendingMovies />
+        </div>
 
         <div className="max-w-2xl mx-auto w-full">
           {/* List Selector */}
