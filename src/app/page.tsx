@@ -7,6 +7,7 @@ import { Film, ArrowRight, Popcorn } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { TrendingMovies } from '@/components/trending-movies';
 
 export default function LandingPage() {
   const { user, isUserLoading } = useUser();
@@ -80,6 +81,9 @@ export default function LandingPage() {
           Enter as guest
         </p>
       </div>
+
+      {/* Trending movies section */}
+      <TrendingMovies />
 
       {/* Decorative popcorn at bottom */}
       <div className="pb-8 flex justify-center">
