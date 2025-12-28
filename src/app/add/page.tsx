@@ -328,6 +328,12 @@ export default function AddPage() {
 
   return (
     <main className="min-h-screen font-body text-foreground pb-24 md:pb-8 md:pt-20 flex flex-col relative">
+      {/* Theme toggle and avatar in top right corner */}
+      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+        <ThemeToggle />
+        <UserAvatar />
+      </div>
+
       <div className="container mx-auto p-4 md:p-8 flex-1 flex flex-col justify-center">
         {/* Header */}
         <header className="mb-8 text-center">
@@ -342,18 +348,15 @@ export default function AddPage() {
           <p className="text-muted-foreground">
             Search for movies or TV shows to add to your watchlist.
           </p>
-          {/* Theme toggle and avatar in top right corner */}
-          <div className="absolute top-4 right-4 flex items-center gap-3">
-            <ThemeToggle />
-            <UserAvatar />
-          </div>
         </header>
+      </div>
 
-        {/* Trending Movies Section */}
-        <div className="mb-8 -mx-4 md:-mx-8 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
-          <TrendingMovies />
-        </div>
+      {/* Trending Movies Section - Full Width */}
+      <div className="mb-8">
+        <TrendingMovies />
+      </div>
 
+      <div className="container mx-auto p-4 md:p-8">
         <div className="max-w-2xl mx-auto w-full">
           {/* List Selector */}
           {!selectedMovie && (
